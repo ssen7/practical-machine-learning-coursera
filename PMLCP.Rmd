@@ -6,7 +6,9 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(echo = TRUE)
+options(width = 100)
+knitr::opts_chunk$set(message = F, error = F, warning = F, comment = NA, fig.align = "center", dpi = 100, tidy = F, cache.path = '.cache/', fig.path = 'fig/', fig.width = 8, fig.height = 3.5)
 ```
 In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
 
