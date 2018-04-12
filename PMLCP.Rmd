@@ -2,13 +2,16 @@
 title: "Practical Machine Learning Course Project"
 author: "Saurav"
 date: "9 April 2018"
-output: html_document
+output:
+        html_document:
+                keep_md: true
+
 ---
 
 ```{r setup, include=FALSE}
 #knitr::opts_chunk$set(echo = TRUE)
 options(width = 100)
-knitr::opts_chunk$set(message = F, error = F, warning = F, comment = NA, fig.align = "center", dpi = 100, tidy = F, cache.path = '.cache/', fig.path = 'fig/', fig.width = 8, fig.height = 3.5)
+knitr::opts_chunk$set(message = F, error = F, warning = F, comment = NA, fig.align = "center", dpi = 100, tidy = F, cache.path = '.cache/', fig.path = 'fig/', fig.width = 8, fig.height = 3.5, cache = TRUE)
 ```
 In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
 
@@ -35,6 +38,86 @@ g
 
 Get the accelerometer data
 ```{r}
-trainset <- training[,c(1,2,3,4,5,6,7,grep("accel", names(training)), 160)]
+library(caret)
+trainset <- training[,c(grep("accel", names(training)), 160)]
+
+str(trainset)
+```
+We see that some variables are mostly NA. Hence we can choose to ignore them and use the rest of the variables to make our models. Therefore we leave out the following:
+
+1. var_total_accel_belt
+2. var_accel_arm
+3. var_accel_dumbbell
+4. var_accel_forearm
+
+Also looking at the names we can see that they are some sort of variable component of the total acceleration measurements of the
+various accelerometers. We can probably safely ignore them
+```{r}
+# removing the NA variables
+grep("var_accel", names(trainset))
+trainset <- trainset[, -c(grep("var_total_accel", names(trainset)), grep("var_accel", names(trainset)))]
+str(trainset)
+```
+
+## Testing tree algorithm
+```{r}
+set.seed(33833)
+inTrain <- createDataPartition(y=trainset$classe,
+                              p=0.75, list=FALSE)
+modeltrainset <- trainset[inTrain, ]
+modeltestset <- trainset[-inTrain, ]
+
+mf1 <- train(classe ~ ., method = "rpart", data = modeltrainset, na.action = na.pass)
+confusionMatrix(predict(mf1, modeltestset),modeltestset$classe)$overall[1]
+
+```
+* Clearly the accuracy is pretty low
+
+## Testing random forest
+
+* Here we will do a principle component analysis with a threshold of 0.8 to account for 80 percent of the variation. 
+* This has been done to reduce the time taken for the algorithm to run on this large dataset. 
+* We will also use *cross validation* using the train control method
+
+```{r}
+ctrl <- trainControl(preProcOptions = list(thresh = 0.8), method = "cv")
+mf2 <- train(classe ~ ., method = "rf", data = modeltrainset, preProcess="pca", trControl = ctrl)
+
+confusionMatrix(predict(mf2, modeltestset), modeltestset$classe)$overall[1]
+```
+We can see that the accuracy has increased considerably by doing PCA and then using random forest to train the model
+
+
+```{r}
+library(ggplot2)
+predict2 <- predict(mf2, modeltestset)
+
+predictionDF <- data.frame(classe = predict2)
+testdf <- data.frame(classe = modeltestset$classe)
+
+g <- ggplot(testdf, aes(classe)) + geom_histogram(data = testdf, fill = "red", stat = "count", alpha = 0.6) + geom_histogram(data = predictionDF, stat = "count", alpha = 0.4, fill = "darkgray")
+g
+```
+
+## Next we will try stacking the models
+* NOTE: Can possibly lead to overfitting the model on the training set.
+```{r}
+pr1 <- predict(mf1, modeltestset)
+pr2 <- predict(mf2, modeltestset)
+
+prdf <- data.frame(pr1, pr2, classe = modeltestset$classe)
+
+combfit <- train(classe ~ ., method="rf", data=prdf, trControl = trainControl(method = "cv"))
+
+confusionMatrix(predict(combfit, modeltestset), modeltestset$classe)$overall[1]
+```
+
+The accuracy seems to have improved marginally.
+
+We can safely say that based on the results that the model fit trained using random forest can reasonably predict on the test data.
+
+## Final result for the quiz
+```{r}
+predict(mf2, testing)
 ```
 
